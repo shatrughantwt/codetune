@@ -18,7 +18,10 @@ IGNORED_DIRS = {
 def analyze_file(file_path):
     """Calculate basic metrics for one Python file."""
 
-    source = file_path.read_text(encoding="utf-8", errors="replace")
+    source = file_path.read_text(
+        encoding="utf-8",
+        errors="replace",
+    )
     lines = source.splitlines()
 
     total_lines = len(lines)
@@ -55,6 +58,31 @@ def find_python_files(root):
                 yield Path(current_dir) / name
 
 
+def analyze_repository(root):
+    """Analyze all Python files and return repository metrics."""
+
+    root = Path(root).resolve()
+    results = []
+
+    for file_path in find_python_files(root):
+        try:
+            results.append(analyze_file(file_path))
+        except OSError as error:
+            print(f"Could not read {file_path}: {error}")
+
+    return {
+        "files": results,
+        "file_count": len(results),
+        "lines": sum(result["lines"] for result in results),
+        "non_empty_lines": sum(
+            result["non_empty_lines"] for result in results
+        ),
+        "functions": sum(
+            result["functions"] for result in results
+        ),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze Python source code for CodeTune."
@@ -70,24 +98,17 @@ def main():
     root = Path(args.repository).resolve()
 
     if not root.is_dir():
-        print(f"Error: directory not found: {root}")
-        return
+        parser.error(f"directory not found: {root}")
 
-    results = []
+    metrics = analyze_repository(root)
 
-    for file_path in find_python_files(root):
-        try:
-            results.append(analyze_file(file_path))
-        except OSError as error:
-            print(f"Could not read {file_path}: {error}")
-
-    if not results:
+    if not metrics["files"]:
         print("No readable Python files found.")
         return
 
     print("\nCodeTune - Repository Analysis\n")
 
-    for result in results:
+    for result in metrics["files"]:
         print(f"File: {result['file']}")
         print(f"  Lines: {result['lines']}")
         print(f"  Non-empty lines: {result['non_empty_lines']}")
@@ -95,10 +116,10 @@ def main():
         print()
 
     print("Repository totals:")
-    print(f"  Files: {len(results)}")
-    print(f"  Lines: {sum(r['lines'] for r in results)}")
-    print(f"  Non-empty lines: {sum(r['non_empty_lines'] for r in results)}")
-    print(f"  Functions: {sum(r['functions'] for r in results)}")
+    print(f"  Files: {metrics['file_count']}")
+    print(f"  Lines: {metrics['lines']}")
+    print(f"  Non-empty lines: {metrics['non_empty_lines']}")
+    print(f"  Functions: {metrics['functions']}")
 
 
 if __name__ == "__main__":
